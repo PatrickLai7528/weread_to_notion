@@ -165,9 +165,10 @@ def get_callout(content, style, colorStyle, reviewId):
     }
 
 
-def check(bookId):
-    """检查是否已经插入过 如果已经插入了就删除"""
+def upsert_book(bookId):
+    """检查是否已经插入过 如果已经插入了返回原來的blockId，否則返回插入並返新的ID"""
     time.sleep(0.3)
+    print(bookId)
     filter = {
         "property": "BookId",
         "rich_text": {
@@ -175,9 +176,21 @@ def check(bookId):
         }
     }
     response = client.databases.query(database_id=database_id, filter=filter)
-    for result in response["results"]:
-        time.sleep(0.3)
-        client.blocks.delete(block_id=result["id"])
+
+    if len(response["results"]) > 0:
+        for result in response["results"]:
+            time.sleep(0.3)
+            if result['id'] is not None and len(result['id']) > 0:
+                print('here2')
+                return result['id']
+    else:
+        print('here')
+        response = client.pages.create(parent=database_id, properties=[{
+            
+        }])
+        print(response)
+
+    return None
 
 
 def get_chapter_info(bookId):
@@ -372,14 +385,19 @@ def calculate_book_str_id(book_id):
     return result
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("weread_cookie")
-    parser.add_argument("notion_token")
-    parser.add_argument("database_id")
-    options = parser.parse_args()
-    weread_cookie = options.weread_cookie
-    database_id = options.database_id
-    notion_token = options.notion_token
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument("weread_cookie")
+    # parser.add_argument("notion_token")
+    # parser.add_argument("database_id")
+    # options = parser.parse_args()
+    # weread_cookie = options.weread_cookie
+    # database_id = options.database_id
+    # notion_token = options.notion_token
+
+    weread_cookie = 'pgv_pvid=855104601; fqm_pvqid=5439e347-4fdc-4da5-83a4-d43b48f81fdf; _ga=GA1.1.1343840131.1632275786; _ga_2DYB6E8NZY=GS1.1.1658015230.2.0.1658015230.0; pgv_info=pgvReferrer=&ssid=s2855183380; tvfe_boss_uuid=3d8b19b3bd0807c1; vversion_name=8.2.95; video_omgid=2c841fc8c54e2642; wr_gid=216722599; wr_vid=35936198; wr_pf=0; wr_rt=web%407SvsThkoy~~nubveeHe_AL; wr_localvid=2c8327e0722457c62c88944; wr_name=Patrick; wr_avatar=https%3A%2F%2Fwx.qlogo.cn%2Fmmhead%2Fk947icPboBqDYUu5icqqw6hFhmHuJR2JpjsXl1lwDDBxPY2p0HibgqI4g%2F0; wr_gender=1; wr_skey=stnqgwFQ; wr_fp=3066565081'
+    database_id = '9c445c4a691c4ee38faaaa9c7624cd50'
+    notion_token = 'secret_PhRDDpaaWlGpq5Rov1ZFPXzmAow6PTRIXqIPVYMawXi'
+
     session = requests.Session()
     session.cookies = parse_cookie_string(weread_cookie)
     client = Client(
@@ -392,24 +410,30 @@ if __name__ == "__main__":
     if (books != None):
         for book in books:
             sort = book["sort"]
-            if sort <= latest_sort:
-                continue
+            # if sort <= latest_sort:
+            #     continue
             book = book.get("book")
             title = book.get("title")
             cover = book.get("cover")
             bookId = book.get("bookId")
             author = book.get("author")
-            check(bookId)
-            chapter = get_chapter_info(bookId)
-            bookmark_list = get_bookmark_list(bookId)
-            summary, reviews = get_review_list(bookId)
-            bookmark_list.extend(reviews)
-            bookmark_list = sorted(bookmark_list, key=lambda x: (
-                x.get("chapterUid", 1), 0 if (x.get("range", "") == "" or x.get("range").split("-")[0]=="" ) else int(x.get("range").split("-")[0])))
-            isbn,rating = get_bookinfo(bookId)
-            children, grandchild = get_children(
-                chapter, summary, bookmark_list)
-            id = insert_to_notion(title, bookId, cover, sort, author,isbn,rating)
-            results = add_children(id, children)
-            if(len(grandchild)>0 and results!=None):
-                add_grandchild(grandchild, results)
+            category, sub_category = book.get('categories')[0].get('title').split('-')
+            
+            book_block_id = upsert_book(bookId)
+
+            print(book_block_id)
+
+            # chapter = get_chapter_info(bookId)
+            # bookmark_list = get_bookmark_list(bookId)
+            # summary, reviews = get_review_list(bookId)
+            # bookmark_list.extend(reviews)
+            # bookmark_list = sorted(bookmark_list, key=lambda x: (
+            #     x.get("chapterUid", 1), 0 if (x.get("range", "") == "" or x.get("range").split("-")[0]=="" ) else int(x.get("range").split("-")[0])))
+            # isbn = get_bookinfo(bookId)
+            # children, grandchild = get_children(
+            #     chapter, summary, bookmark_list)
+            # print(children, grandchild)
+            # id = insert_to_notion(title, bookId, cover, sort, author,isbn,rating)
+            # results = add_children(id, children)
+            # if(len(grandchild)>0 and results!=None):
+            #     add_grandchild(grandchild, results)
